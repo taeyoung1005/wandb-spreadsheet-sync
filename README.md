@@ -2,6 +2,18 @@
 
 이 프로젝트는 WandB(W&B; Weights & Biases)에서 머신러닝 모델 실험 데이터를 자동으로 가져와 Google 스프레드시트에 정리하여 기록하는 Python 스크립트입니다. W&B API를 통해 프로젝트의 실험 데이터를 가져오고, Google Sheets API를 사용하여 실험 데이터를 Google 스프레드시트에 저장할 수 있습니다.
 
+```mermaid
+flowchart TD
+    A[Load config.json] --> B[Authenticate WandB and Google Sheets]
+    B --> C[Retrieve existing data from Google Sheets]
+    C --> D[Retrieve runs from WandB]
+    D --> E[Process WandB runs]
+    E --> F[Update Google Sheets with new data]
+    F --> G[Schedule task to run every 30 minutes]
+
+    G --> |Wait 30 minutes| D
+```
+
 ## 주요 기능
 
 - W&B에서 가져온 실험 데이터를 Google 스프레드시트에 자동으로 업데이트.
@@ -83,12 +95,21 @@ pip install -r requirements.txt
 
 ### 실행 방법
 
+#### 스크립트 실행
 1. Python 스크립트를 실행하기 전에 필요한 라이브러리와 인증 파일을 준비하세요.
-2. 스크립트 내에 `wandb API Key` 및 `Google Cloud Platform JSON 파일` 경로를 설정한 후, 프로젝트와 관련된 설정값을 입력하세요.
+2. 스크립트 내에 `wandb API Key` 및 `Google Cloud Platform JSON 파일` 경로를 설정한 후, 프로젝트와 관련된 설정값을 config.json에  입력하세요.
 3. 스크립트를 실행하여 Google 스프레드시트에 W&B 실험 데이터를 업데이트합니다.
 
 ```bash
 python wandb_spreadsheet_sync.py
+```
+
+#### 도커 실행
+```bash
+docker build -t wandb_spreadsheet_sync .
+```
+```bash
+docker run -d --name wandb_spreadsheet_sync wandb_spreadsheet_sync
 ```
 
 ### 출력
