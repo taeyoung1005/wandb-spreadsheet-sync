@@ -9,7 +9,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 config_json = json.load(open("config.json", "r"))
-
 # 이름과 wandb ID 매핑 -> 누가 wandb에 올렸는지 확인하기 위함
 NAME = config_json["NAME"]
 
@@ -78,7 +77,7 @@ def get_dynamic_headers(runs):
 
 
 # WandB 데이터 처리 함수
-def process_wandb_data(runs, run_id_list):
+def process_wandb_data(runs, run_id_list, final_headers):
     rows_to_add = []
     for run in runs:
         if run.state == "finished" and run.id not in run_id_list:
@@ -94,7 +93,7 @@ def process_wandb_data(runs, run_id_list):
                 NAME.get(run.user.name, run.user.name),  # name
             ]
             # 고정된 열들에 대한 데이터 추가
-            for key in FIXED_HEADERS[
+            for key in final_headers[
                 3:
             ]:  # 이미 run_id, _timestamp, name 추가되었으므로 3번째 인덱스부터
                 key = clean_field_name(key)
@@ -130,7 +129,7 @@ def main():
     sheet.append_row(final_headers)  # 헤더 추가
 
     # WandB 데이터 처리 후 추가할 데이터 생성
-    new_rows = process_wandb_data(runs, run_id_list)
+    new_rows = process_wandb_data(runs, run_id_list, final_headers)
 
     # 새로운 데이터와 기존 데이터 결합 후 날짜순으로 정렬
     merged_data = new_rows + temp
