@@ -1,40 +1,25 @@
 import math
 from datetime import datetime
 import schedule
+import json
 
 import wandb
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+config_json = json.load(open("config.json", "r"))
+
 # 이름과 wandb ID 매핑 -> 누가 wandb에 올렸는지 확인하기 위함
-NAME = {
-    "이름": "wandb ID",
-    "이름2": "wandb ID1",
-    "이름3": "wandb ID2",
-}
+NAME = config_json["NAME"]
 
 # spreadsheet에 먼저 추가할 헤더 설정
-FIXED_HEADERS = [
-    "run_id",
-    "_timestamp",
-    "name",
-    "test_acc",
-    "val_acc",
-    "val_f1",
-    "valid_loss_epoch",
-    "model_name",
-    "batch_size",
-    "optim",
-    "loss",
-    "learning_rate",
-    "비고",
-]
+FIXED_HEADERS = config_json["FIXED_HEADERS"]
 
-API_KEY = "wandb API Key"
-GOOGLE_CLOUD_PLATFORM_JSON = "google cloud platform json파일"
-SPREADSHEET_NAME = "스프레드시트 이름"
-PROJECT_NAME = "프로젝트 이름"
-TEAM_NAME = "팀 이름"
+API_KEY = config_json["API_KEY"]
+GOOGLE_CLOUD_PLATFORM_JSON = config_json["GOOGLE_CLOUD_PLATFORM_JSON"]
+SPREADSHEET_NAME = config_json["SPREADSHEET_NAME"]
+TEAM_NAME = config_json["TEAM_NAME"]
+PROJECT_NAME = config_json["PROJECT_NAME"]
 
 
 # Config 설정 함수

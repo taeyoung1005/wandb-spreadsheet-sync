@@ -1,0 +1,27 @@
+{
+    "NAME": {
+      "A": "홍길동",
+      "B": "김삿갓",
+      "C": "이순신"
+    },
+    "FIXED_HEADERS": [
+      "run_id",
+      "_timestamp",
+      "name",
+      "test_acc",
+      "val_acc",
+      "val_f1",
+      "valid_loss_epoch",
+      "model_name",
+      "batch_size",
+      "optim",
+      "loss",
+      "learning_rate",
+      "비고"
+    ],
+    "API_KEY": "API_KEY",
+    "GOOGLE_CLOUD_PLATFORM_JSON": "GOOGLE_CLOUD_PLATFORM_JSON",
+    "SPREADSHEET_NAME": "시트 이름",
+    "TEAM_NAME": "팀 이름",
+    "PROJECT_NAME": "프롲젝트 이름"
+  }

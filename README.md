@@ -43,12 +43,15 @@ pip install -r requirements.txt
    - W&B 계정에 로그인한 후 [API 페이지](https://wandb.ai/authorize)에서 API 키를 생성합니다.
    - 해당 API 키를 스크립트에 입력합니다.
 
-3. **코드 설정**
-   - 스크립트 내 `NAME` 딕셔너리에서 사용자의 W&B ID와 이름을 매핑해 줍니다.
-   - 스프레드시트에서 컬럼의 순서를 바꾸고 싶을 경우 FIXED_HEADERS를 수정하면 됩니다.
-   - `config()` 함수 안에 `wandb.login()` 부분에 W&B API 키를 입력합니다.
-   - `config()` 함수에서 `gspread` 인증 파일 경로와 Google Sheets 이름을 설정합니다.
-   - W&B 프로젝트와 연결하려면 `config()` 함수의 `api.runs("팀 이름/프로젝트 이름")` 부분에 올바른 팀과 프로젝트 이름을 입력합니다.
+3. **config.json 설정**
+
+   - `NAME` 딕셔너리에서 사용자의 W&B ID와 이름을 매핑해 줍니다.
+   - 스프레드시트에서 컬럼의 순서를 바꾸고 싶을 경우 `FIXED_HEADERS`를 수정하면 됩니다.
+   - `API_KEY` 에 W&B API 키를 입력합니다.
+   - `GOOGLE_CLOUD_PLATFORM_JSON`에 인증 파일 경로를 설정합니다.
+   - `SPREADSHEET_NAME`에 구글 스프레드 시트 이름을 설정합니다.
+   - `TEAM_NAME`에 W&B 팀 이름을 설정합니다.
+   - `PROJECT_NAME`에 W&B 프로젝트 이름을 설정합니다.
 
 ### 코드 구성
 
