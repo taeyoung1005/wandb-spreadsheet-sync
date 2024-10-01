@@ -100,9 +100,9 @@ pip install -r requirements.txt
 2. 스크립트 내에 `wandb API Key` 및 `Google Cloud Platform JSON 파일` 경로를 설정한 후, 프로젝트와 관련된 설정값을 config.json에  입력하세요.
 3. 스크립트를 실행하여 Google 스프레드시트에 W&B 실험 데이터를 업데이트합니다.
 
-```bash
-python wandb_spreadsheet_sync.py
-```
+   ```bash
+   python wandb_spreadsheet_sync.py
+   ```
 
 #### 도커 실행
 1. Clone Repository
@@ -123,9 +123,9 @@ python wandb_spreadsheet_sync.py
 - 실행이 완료되면, W&B 실험 데이터가 Google 스프레드시트에 최신 상태로 업데이트됩니다.
 - 출력 메시지로 성공 여부를 확인할 수 있습니다.
 
-```text
-W&B 데이터를 내림차순으로 헤더와 함께 Google 스프레드시트에 추가했습니다.
-```
+   ```text
+   W&B 데이터를 내림차순으로 헤더와 함께 Google 스프레드시트에 추가했습니다.
+   ```
 
 ## 주의 사항
 
