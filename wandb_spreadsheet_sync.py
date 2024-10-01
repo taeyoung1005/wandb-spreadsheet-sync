@@ -30,11 +30,17 @@ FIXED_HEADERS = [
     "비고",
 ]
 
+API_KEY = "wandb API Key"
+GOOGLE_CLOUD_PLATFORM_JSON = "google cloud platform json파일"
+SPREADSHEET_NAME = "스프레드시트 이름"
+PROJECT_NAME = "프로젝트 이름"
+TEAM_NAME = "팀 이름"
+
 
 # Config 설정 함수
 def config():
     # W&B API Key 설정
-    wandb.login(key="wandb API Key")
+    wandb.login(key=API_KEY)
 
     # Google Spreadsheet 인증 설정
     scope = [
@@ -42,17 +48,17 @@ def config():
         "https://www.googleapis.com/auth/drive",
     ]
     creds = ServiceAccountCredentials.from_json_keyfile_name(
-        "google cloud platform json파일", scope
+        GOOGLE_CLOUD_PLATFORM_JSON, scope
     )
     client = gspread.authorize(creds)
 
     # 스프레드시트 열기
-    spreadsheet = client.open("스프레드시트 이름")
+    spreadsheet = client.open(SPREADSHEET_NAME)
     sheet = spreadsheet.sheet1  # 첫 번째 시트를 사용
 
     # W&B 프로젝트와 연결
     api = wandb.Api()
-    runs = api.runs("팀 이름/프로젝트 이름")
+    runs = api.runs(f"{TEAM_NAME}/{PROJECT_NAME}")
 
     return sheet, runs
 
