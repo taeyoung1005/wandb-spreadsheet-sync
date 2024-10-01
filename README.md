@@ -35,7 +35,7 @@ flowchart TD
 ```bash
 pip install wandb gspread oauth2client
 ```
-
+or
 ```python
 pip install -r requirements.txt
 ```
@@ -105,12 +105,19 @@ python wandb_spreadsheet_sync.py
 ```
 
 #### 도커 실행
-```bash
-docker build -t wandb_spreadsheet_sync .
-```
-```bash
-docker run -d --name wandb_spreadsheet_sync wandb_spreadsheet_sync
-```
+1. Clone Repository
+   ```bash
+      git clone https://github.com/taeyoung1005/wandb-spreadsheet-sync.git
+   ```
+
+2. Image build
+   ```bash
+   docker build -t wandb_spreadsheet_sync .
+   ```
+3. Container Run
+   ```bash
+   docker run -d --name wandb_spreadsheet_sync wandb_spreadsheet_sync
+   ```
 
 ### 출력
 - 실행이 완료되면, W&B 실험 데이터가 Google 스프레드시트에 최신 상태로 업데이트됩니다.
