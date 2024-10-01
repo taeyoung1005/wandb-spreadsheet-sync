@@ -2,6 +2,7 @@ import math
 from datetime import datetime
 import schedule
 import json
+import time
 
 import wandb
 import gspread
@@ -143,3 +144,6 @@ def main():
 
 if __name__ == "__main__":
     schedule.every(30).minutes.do(main)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
