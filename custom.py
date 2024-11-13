@@ -27,7 +27,7 @@ from argparse import ArgumentParser
 
 6. Rename : GOOGLE_CLOUD_PLATFORM_JSON -> GCP_JSON
 
-7. Spread Sheet가 존재한다면, 새로운 sheet를 생성하고 거기에 기록하도록 설정
+7. 만약 Sheet가 존재한다면(비어있지 않다면), 새로운 sheet를 생성하고 거기에 기록하도록 설정
 '''
 
 def parse_args():
@@ -37,6 +37,16 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
+config_json = json.load(open("config.json", "r"))
+
+# spreadsheet에 먼저 추가할 헤더 설정
+FIXED_HEADERS = config_json["FIXED_HEADERS"]
+API_KEY = config_json["API_KEY"]
+GCP_JSON = config_json["GCP_JSON"]
+SPREADSHEET_NAME = config_json["SPREADSHEET_NAME"]
+TEAM_NAME = config_json["TEAM_NAME"]
+PROJECT_NAME = config_json["PROJECT_NAME"]
 
 ##### 구분선 #####
 

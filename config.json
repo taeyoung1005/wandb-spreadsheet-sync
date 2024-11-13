@@ -1,9 +1,4 @@
 {
-    "NAME": {
-      "A": "홍길동",
-      "B": "김삿갓",
-      "C": "이순신"
-    },
     "FIXED_HEADERS": [
       "run_id",
       "_timestamp",
@@ -23,5 +18,5 @@
     "GCP_JSON": "GCP_JSON",
     "SPREADSHEET_NAME": "시트 이름",
     "TEAM_NAME": "팀 이름",
-    "PROJECT_NAME": "프롲젝트 이름"
+    "PROJECT_NAME": "프로젝트 이름"
   }
