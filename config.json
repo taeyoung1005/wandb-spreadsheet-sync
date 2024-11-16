@@ -3,18 +3,14 @@
       "run_id",
       "_timestamp",
       "name",
-      "test_acc",
-      "val_acc",
-      "val_f1",
-      "valid_loss_epoch",
+      "train_loss"
+      "val_dice",
       "model_name",
       "batch_size",
       "optim",
       "loss",
-      "learning_rate",
-      "비고"
+      "learning_rate"
     ],
-    "API_KEY": "API_KEY",
     "GCP_JSON": "GCP_JSON",
     "SPREADSHEET_NAME": "시트 이름",
     "TEAM_NAME": "팀 이름",

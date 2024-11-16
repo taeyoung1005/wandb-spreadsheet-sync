@@ -1,148 +1,251 @@
 import math
+import os
 from datetime import datetime
 import schedule
 import json
 import time
+import argparse
+from tqdm import tqdm
+import logging
+from typing import Tuple, List, Dict, Any
 
 import wandb
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-config_json = json.load(open("config.json", "r"))
-# 이름과 wandb ID 매핑 -> 누가 wandb에 올렸는지 확인하기 위함
-NAME = config_json["NAME"]
-
-# spreadsheet에 먼저 추가할 헤더 설정
-FIXED_HEADERS = config_json["FIXED_HEADERS"]
-
-API_KEY = config_json["API_KEY"]
-GOOGLE_CLOUD_PLATFORM_JSON = config_json["GOOGLE_CLOUD_PLATFORM_JSON"]
-SPREADSHEET_NAME = config_json["SPREADSHEET_NAME"]
-TEAM_NAME = config_json["TEAM_NAME"]
-PROJECT_NAME = config_json["PROJECT_NAME"]
-
-
-# Config 설정 함수
-def config():
-    # W&B API Key 설정
-    wandb.login(key=API_KEY)
-
-    # Google Spreadsheet 인증 설정
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive",
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('wandb_sync.log')
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        GOOGLE_CLOUD_PLATFORM_JSON, scope
-    )
-    client = gspread.authorize(creds)
+)
+logger = logging.getLogger(__name__)
 
-    # 스프레드시트 열기
-    spreadsheet = client.open(SPREADSHEET_NAME)
-    sheet = spreadsheet.sheet1  # 첫 번째 시트를 사용
+class ConfigError(Exception):
+    """Configuration related errors"""
+    pass
 
-    # W&B 프로젝트와 연결
-    api = wandb.Api()
-    runs = api.runs(f"{TEAM_NAME}/{PROJECT_NAME}")
+class SheetError(Exception):
+    """Google Sheets related errors"""
+    pass
 
-    return sheet, runs
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='Sync WandB runs to Google Sheets')
+    parser.add_argument('--schedule-time', type=int, default=30,
+                       help='Schedule interval in minutes (default: 30)')
+    parser.add_argument('--user-name', type=str, default='Anoymous',
+                       help='User name for tracking WandB runs')
+    parser.add_argument('--sheet-name', type=str, required=True,
+                       help='Name of the Google Sheet to use')
+    parser.add_argument('--config-path', type=str, default='config.json',
+                       help='Path to configuration file')
+    parser.add_argument('--batch-size', type=int, default=100,
+                       help='Number of rows to process at once')
+    return parser.parse_args()
 
+def get_wandb_project_info() -> Tuple[str, str]:
+    """현재 실행 중인 WandB 프로젝트 정보 가져오기"""
+    current_run = wandb.run
+    if current_run is None:
+        raise ConfigError("No active WandB run found")
 
-# 특수 문자 정리 함수
-def clean_field_name(field_name):
-    return field_name.replace("/", "_")
+    project_name = current_run.project
+    entity_name = current_run.entity  # entity는 team name과 동일
 
+    if not project_name or not entity_name:
+        raise ConfigError("Failed to get project or team name from WandB run")
 
-# 기존 스프레드시트 데이터를 가져와 run_id 리스트로 반환
-def get_existing_run_ids(sheet):
-    sheet_data = sheet.get_all_records()
-    return [row["run_id"] for row in sheet_data], sheet_data
+    return entity_name, project_name
 
+def load_config(config_path: str) -> Dict[str, Any]:
+    """설정 파일 로드 및 검증"""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
 
-# NaN 값 처리를 포함한 데이터를 문자열로 변환하는 함수
-def convert_row_to_str(row):
-    return [
-        str(value) if not (isinstance(value, float) and math.isnan(value)) else ""
-        for value in row.values()
-    ]
+        required_keys = ['GCP_JSON', 'FIXED_HEADERS']  # TEAM_NAME과 PROJECT_NAME은 더 이상 필요하지 않음
+        missing_keys = [key for key in required_keys if key not in config]
+        if missing_keys:
+            raise ConfigError(f"Missing required keys in config: {missing_keys}")
 
+        # WandB에서 현재 프로젝트 정보 가져오기
+        try:
+            team_name, project_name = get_wandb_project_info()
+            config['TEAM_NAME'] = team_name
+            config['PROJECT_NAME'] = project_name
+            logger.info(f"Using WandB project: {project_name} from team: {team_name}")
+        except ConfigError as e:
+            raise ConfigError(f"Failed to get WandB project info: {str(e)}")
 
-# 동적 헤더 추출 함수
-def get_dynamic_headers(runs):
-    dynamic_headers = set()
-    for run in runs[:1]:
-        dynamic_headers.update(run.config.keys())
-        dynamic_headers.update(run.summary.keys())
-    return list(dynamic_headers)
+        return config
+    except FileNotFoundError:
+        raise ConfigError(f"Config file not found: {config_path}")
+    except json.JSONDecodeError:
+        raise ConfigError(f"Invalid JSON in config file: {config_path}")
 
+def init_sheet(sheet_name: str, config: Dict[str, Any]) -> Tuple[gspread.Worksheet, wandb.Api]:
+    """스프레드시트 초기화 및 WandB API 연결"""
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            config['GCP_JSON'], scope
+        )
+        client = gspread.authorize(creds)
 
-# WandB 데이터 처리 함수
-def process_wandb_data(runs, run_id_list, final_headers):
+        # Open spreadsheet
+        spreadsheet = client.open(sheet_name)
+
+        # 시트 개수 제한 확인
+        if len(spreadsheet.worksheets()) >= 100:  # Google Sheets 제한
+            oldest_sheet = min(spreadsheet.worksheets(),
+                             key=lambda x: x.title if not x.title.startswith('runs_')
+                             else x.title.split('_')[1])
+            oldest_sheet.delete()
+            logger.warning(f"Deleted oldest sheet: {oldest_sheet.title}")
+
+        # If there is no existing sheet, create it.
+        if len(spreadsheet.sheet1.get_all_values()) > 0:
+            new_sheet_name = f"runs_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            worksheet = spreadsheet.add_worksheet(
+                title=new_sheet_name,
+                rows=min(1000, spreadsheet.sheet1.row_count),
+                cols=min(50, spreadsheet.sheet1.col_count)
+            )
+            # Copy before sheet.
+            header_row = spreadsheet.sheet1.row_values(1)
+            if header_row:
+                worksheet.append_row(header_row)
+        else:
+            worksheet = spreadsheet.sheet1
+
+        # WandB API 연결
+        api = wandb.Api()
+
+        return worksheet, api
+
+    except Exception as e:
+        raise SheetError(f"Failed to initialize sheet: {str(e)}")
+
+def process_runs_batch(runs: List[Any], run_id_list: List[str],
+                      final_headers: List[str], user_name: str,
+                      batch_size: int) -> List[List[str]]:
+    """배치 단위로 WandB runs 처리"""
     rows_to_add = []
+    batch_runs = []
+
     for run in runs:
         if run.state == "finished" and run.id not in run_id_list:
-            row_data = [
-                run.id,  # run_id
-                (
-                    datetime.fromtimestamp(run.summary["_timestamp"]).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if "_timestamp" in run.summary
-                    else ""
-                ),  # _timestamp
-                NAME.get(run.user.name, run.user.name),  # name
-            ]
-            # 고정된 열들에 대한 데이터 추가
-            for key in final_headers[
-                3:
-            ]:  # 이미 run_id, _timestamp, name 추가되었으므로 3번째 인덱스부터
-                key = clean_field_name(key)
-                if key in run.config:
-                    row_data.append(str(run.config[key]))
-                elif key in run.summary:
-                    row_data.append(str(run.summary[key]))
-                else:
-                    row_data.append("")  # 해당 키에 데이터가 없으면 빈 값 추가
-            rows_to_add.append(row_data)
+            if run.user.name == user_name:
+                batch_runs.append(run)
+
+                if len(batch_runs) >= batch_size:
+                    rows_to_add.extend(process_batch(batch_runs, final_headers))
+                    batch_runs = []
+
+    if batch_runs:  # 남은 runs 처리
+        rows_to_add.extend(process_batch(batch_runs, final_headers))
+
     return rows_to_add
 
+def process_batch(batch_runs: List[Any], final_headers: List[str]) -> List[List[str]]:
+    """단일 배치 처리"""
+    batch_data = []
+    for run in tqdm(batch_runs, desc="Processing batch"):
+        try:
+            row_data = [
+                run.id,
+                get_timestamp(run),
+                run.user.name,
+            ]
+            # 추가 필드 처리
+            for key in final_headers[3:]:
+                value = get_run_value(run, key)
+                row_data.append(value)
+            batch_data.append(row_data)
+        except Exception as e:
+            logger.error(f"Error processing run {run.id}: {str(e)}")
+            continue
+    return batch_data
 
-def main():
-    sheet, runs = config()
+def get_timestamp(run: Any) -> str:
+    """타임스탬프 추출"""
+    try:
+        return (datetime.fromtimestamp(run.summary["_timestamp"])
+                .strftime("%Y-%m-%d %H:%M:%S")
+                if "_timestamp" in run.summary else "")
+    except Exception:
+        return ""
 
-    # 기존 스프레드시트에서 run_id 가져오기
-    run_id_list, sheet_data = get_existing_run_ids(sheet)
+def get_run_value(run: Any, key: str) -> str:
+    """run에서 값 추출"""
+    try:
+        if key in run.config:
+            return str(run.config[key])
+        elif key in run.summary:
+            return str(run.summary[key])
+        return ""
+    except Exception:
+        return ""
 
-    # 기존 데이터를 문자열로 변환하여 temp 리스트에 저장
-    temp = [convert_row_to_str(row) for row in sheet_data]
+def sync_data(sheet: gspread.Worksheet, new_rows: List[List[str]],
+              existing_data: List[List[str]]) -> None:
+    """Data sync"""
+    try:
+        merged_data = new_rows + existing_data
+        merged_data.sort(key=lambda x: x[1], reverse=True)
 
-    # 동적 헤더 추출
-    dynamic_headers = get_dynamic_headers(runs)
+        # Limit computation amount using batch_size
+        for i in range(0, len(merged_data), 100):  # Google Sheets API 제한
+            batch = merged_data[i:i + 100]
+            sheet.append_rows(batch)
+            time.sleep(1)  # API 제한 방지
 
-    # 고정된 헤더와 동적 헤더를 합쳐 최종 헤더 구성
-    final_headers = FIXED_HEADERS + [
-        key for key in dynamic_headers if key not in FIXED_HEADERS
-    ]
+    except Exception as e:
+        raise SheetError(f"Failed to sync data: {str(e)}")
 
-    # 스프레드시트에 헤더 추가
-    sheet.clear()  # 기존 데이터 삭제
-    sheet.append_row(final_headers)  # 헤더 추가
+def main(args: argparse.Namespace) -> None:
+    try:
+        config = load_config(args.config_path)
+        sheet, api = init_sheet(args.sheet_name, config)
 
-    # WandB 데이터 처리 후 추가할 데이터 생성
-    new_rows = process_wandb_data(runs, run_id_list, final_headers)
+        runs = api.runs(f"{config['TEAM_NAME']}/{config['PROJECT_NAME']}")
+        run_id_list = [row[0] for row in sheet.get_all_values()[1:]]  # Skip header
 
-    # 새로운 데이터와 기존 데이터 결합 후 날짜순으로 정렬
-    merged_data = new_rows + temp
-    merged_data.sort(key=lambda x: x[1], reverse=True)
+        new_rows = process_runs_batch(
+            runs, run_id_list, config['FIXED_HEADERS'],
+            args.user_name, args.batch_size
+        )
 
-    # 스프레드시트에 추가
-    sheet.append_rows(merged_data)
+        if new_rows:
+            sync_data(sheet, new_rows, [])
+            logger.info(f"Successfully added {len(new_rows)} new runs")
+        else:
+            logger.info("No new runs to add")
 
-    print("W&B 데이터를 내림차순으로 헤더와 함께 Google 스프레드시트에 추가했습니다.")
-
+    except Exception as e:
+        logger.error(f"Error in main sync process: {str(e)}")
+        raise
 
 if __name__ == "__main__":
-    schedule.every(30).minutes.do(main)
+    args = parse_args()
+    logger.info(f"Starting sync process (Schedule: every {args.schedule_time} minutes)")
+    logger.info(f"Monitoring runs for user: {args.user_name}")
+
+    schedule.every(args.schedule_time).minutes.do(lambda: main(args))
+
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Sync process stopped by user")
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            time.sleep(60)  # Retry 1 min later if error occurs.
