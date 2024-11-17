@@ -5,7 +5,6 @@ import schedule
 import json
 import time
 import argparse
-from tqdm import tqdm
 import logging
 from typing import Tuple, List, Dict, Any
 
@@ -42,8 +41,6 @@ def parse_args() -> argparse.Namespace:
                        help='Name of the Google Sheet to use')
     parser.add_argument('--config-path', type=str, default='config.json',
                        help='Path to configuration file')
-    parser.add_argument('--batch-size', type=int, default=100,
-                       help='Number of rows to process at once')
     return parser.parse_args()
 
 def get_wandb_project_info() -> Tuple[str, str]:
@@ -66,7 +63,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         with open(config_path, 'r') as f:
             config = json.load(f)
 
-        required_keys = ['GCP_JSON', 'FIXED_HEADERS']  # TEAM_NAME과 PROJECT_NAME은 더 이상 필요하지 않음
+        required_keys = ['GCP_JSON', 'FIXED_HEADERS']
         missing_keys = [key for key in required_keys if key not in config]
         if missing_keys:
             raise ConfigError(f"Missing required keys in config: {missing_keys}")
@@ -132,47 +129,6 @@ def init_sheet(sheet_name: str, config: Dict[str, Any]) -> Tuple[gspread.Workshe
     except Exception as e:
         raise SheetError(f"Failed to initialize sheet: {str(e)}")
 
-def process_runs_batch(runs: List[Any], run_id_list: List[str],
-                      final_headers: List[str], user_name: str,
-                      batch_size: int) -> List[List[str]]:
-    """배치 단위로 WandB runs 처리"""
-    rows_to_add = []
-    batch_runs = []
-
-    for run in runs:
-        if run.state == "finished" and run.id not in run_id_list:
-            if run.user.name == user_name:
-                batch_runs.append(run)
-
-                if len(batch_runs) >= batch_size:
-                    rows_to_add.extend(process_batch(batch_runs, final_headers))
-                    batch_runs = []
-
-    if batch_runs:  # 남은 runs 처리
-        rows_to_add.extend(process_batch(batch_runs, final_headers))
-
-    return rows_to_add
-
-def process_batch(batch_runs: List[Any], final_headers: List[str]) -> List[List[str]]:
-    """단일 배치 처리"""
-    batch_data = []
-    for run in tqdm(batch_runs, desc="Processing batch"):
-        try:
-            row_data = [
-                run.id,
-                get_timestamp(run),
-                run.user.name,
-            ]
-            # 추가 필드 처리
-            for key in final_headers[3:]:
-                value = get_run_value(run, key)
-                row_data.append(value)
-            batch_data.append(row_data)
-        except Exception as e:
-            logger.error(f"Error processing run {run.id}: {str(e)}")
-            continue
-    return batch_data
-
 def get_timestamp(run: Any) -> str:
     """타임스탬프 추출"""
     try:
@@ -193,19 +149,37 @@ def get_run_value(run: Any, key: str) -> str:
     except Exception:
         return ""
 
-def sync_data(sheet: gspread.Worksheet, new_rows: List[List[str]],
-              existing_data: List[List[str]]) -> None:
+def process_runs(runs: List[Any], run_id_list: List[str],
+                final_headers: List[str], user_name: str) -> List[List[str]]:
+    """WandB runs 처리"""
+    rows_to_add = []
+
+    for run in runs:
+        if run.state == "finished" and run.id not in run_id_list:
+            if run.user.name == user_name:
+                try:
+                    row_data = [
+                        run.id,
+                        get_timestamp(run),
+                        run.user.name,
+                    ]
+                    # 추가 필드 처리
+                    for key in final_headers[3:]:
+                        value = get_run_value(run, key)
+                        row_data.append(value)
+                    rows_to_add.append(row_data)
+                except Exception as e:
+                    logger.error(f"Error processing run {run.id}: {str(e)}")
+                    continue
+
+    return rows_to_add
+
+def sync_data(sheet: gspread.Worksheet, new_rows: List[List[str]]) -> None:
     """Data sync"""
     try:
-        merged_data = new_rows + existing_data
-        merged_data.sort(key=lambda x: x[1], reverse=True)
-
-        # Limit computation amount using batch_size
-        for i in range(0, len(merged_data), 100):  # Google Sheets API 제한
-            batch = merged_data[i:i + 100]
-            sheet.append_rows(batch)
+        if new_rows:
+            sheet.append_rows(new_rows)
             time.sleep(1)  # API 제한 방지
-
     except Exception as e:
         raise SheetError(f"Failed to sync data: {str(e)}")
 
@@ -217,13 +191,13 @@ def main(args: argparse.Namespace) -> None:
         runs = api.runs(f"{config['TEAM_NAME']}/{config['PROJECT_NAME']}")
         run_id_list = [row[0] for row in sheet.get_all_values()[1:]]  # Skip header
 
-        new_rows = process_runs_batch(
+        new_rows = process_runs(
             runs, run_id_list, config['FIXED_HEADERS'],
-            args.user_name, args.batch_size
+            args.user_name
         )
 
         if new_rows:
-            sync_data(sheet, new_rows, [])
+            sync_data(sheet, new_rows)
             logger.info(f"Successfully added {len(new_rows)} new runs")
         else:
             logger.info("No new runs to add")
@@ -248,4 +222,4 @@ if __name__ == "__main__":
             break
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
-            time.sleep(60)  # Retry 1 min later if error occurs.
+            time.sleep(60)  # Retry 1 min later if error occurs
