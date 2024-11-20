@@ -1,6 +1,13 @@
 # 프로젝트 설명: W&B 데이터를 Google 스프레드시트로 전송
 
-이 프로젝트는 WandB(W&B; Weights & Biases)에서 머신러닝 모델 실험 데이터를 자동으로 가져와 Google 스프레드시트에 정리하여 기록하는 Python 스크립트입니다. W&B API를 통해 프로젝트의 실험 데이터를 가져오고, Google Sheets API를 사용하여 실험 데이터를 Google 스프레드시트에 저장할 수 있습니다.
+이 프로젝트는 실행 중인 Wandb 실험을 불러오고, 전송하고 싶은 Machine Learning 또는 Deep Learning 실험 데이터를 지정한 뒤에 Google Spreadsheet로 정리하여 기록합니다. W&B API를 통해 프로젝트의 실험 데이터를 가져오고, Google Sheets API를 사용하여 실험 데이터를 Google 스프레드시트에 저장할 수 있습니다. 실행 예시는 아래와 같습니다.
+
+| Run ID | Timestamp | User | Model Type | Learning Rate | Batch Size | Epochs | Training Loss | Validation Loss | Accuracy | GPU Memory |
+|--------|-----------|------|------------|---------------|------------|---------|---------------|-----------------|-----------|------------|
+| 2xk8p9n0 | 2024-11-20 14:30:15 | YourName | ResNet50 | 0.001 | 32 | 100 | 0.245 | 0.312 | 0.892 | 5.6GB |
+| 7mq2r5v3 | 2024-11-20 15:45:22 | YourName | ResNet101 | 0.0005 | 64 | 150 | 0.198 | 0.287 | 0.901 | 8.2GB |
+| 9kt4h8w1 | 2024-11-20 17:20:03 | YourName | EfficientNet | 0.001 | 32 | 80 | 0.267 | 0.295 | 0.885 | 4.8GB |
+| 3np6j2x5 | 2024-11-20 19:10:45 | YourName | VGG16 | 0.0001 | 16 | 120 | 0.312 | 0.358 | 0.878 | 6.4GB |
 
 ```mermaid
 flowchart TD
@@ -15,12 +22,12 @@ flowchart TD
 ```
 
 ## 주요 기능
-
 - W&B에서 가져온 실험 데이터를 Google 스프레드시트에 자동으로 업데이트.
 - 기존 데이터와 중복되지 않는 실험 데이터만 추가하여 기록.
 - 고정된 헤더 및 동적 헤더를 구성하여 실험 데이터를 시각적으로 깔끔하게 정리.
 - NaN 값 처리 및 특수 문자 제거 기능 포함.
-- spreadsheet에서 수정한 값이 업데이트에 반영됨 
+- spreadsheet에서 수정한 값이 업데이트에 반영됨
+
 
 ## 요구사항
 
@@ -56,42 +63,38 @@ pip install -r requirements.txt
    - 해당 API 키를 스크립트에 입력합니다.
 
 3. **config.json 설정**
-
-   - `NAME` 딕셔너리에서 사용자의 W&B ID와 이름을 매핑해 줍니다.
-   - 스프레드시트에서 컬럼의 순서를 바꾸고 싶을 경우 `FIXED_HEADERS`를 수정하면 됩니다.
-   - `API_KEY` 에 W&B API 키를 입력합니다.
-   - `GOOGLE_CLOUD_PLATFORM_JSON`에 인증 파일 경로를 설정합니다.
+   - `FIXED_HEADERS` : Spreadsheet에 기록할 header(column)을 지정합니다.
+   - `GCP_JSON`에 인증 파일 경로를 설정합니다.
    - `SPREADSHEET_NAME`에 구글 스프레드 시트 이름을 설정합니다.
-   - `TEAM_NAME`에 W&B 팀 이름을 설정합니다.
-   - `PROJECT_NAME`에 W&B 프로젝트 이름을 설정합니다.
 
 ### 코드 구성
 
-#### 1. **config()**
-   - W&B API 및 Google Sheets API를 설정합니다.
-   - W&B에서 실험 데이터를 가져오고, Google 스프레드시트를 엽니다.
+#### 1. **parse_args()**
+   - Parser를 활용해서 입력 인자들을 조절할 수 있습니다.
+   - W&B에 저장할 실험 데이터를 지정하고, GCP(Google Cloud Platform) API를 불러옵니다.
+   - `schedule-time` : 30분 간격으로 실험 결과를 Spreadsheet로 전송합니다. 더 짧은 간격을 위해서는 유료 토큰이 필요합니다.
+   - `sheet-name` : 실험 결과를 기록할 Spreadsheet의 이름을 지정합니다.
+   - `user-name` : Spreadsheet에 기록할 사용자 이름을 지정합니다.
 
-#### 2. **clean_field_name()**
-   - 필드 이름에서 슬래시("/")와 같은 특수 문자를 제거하여 스프레드시트에 적합한 이름으로 변환합니다.
+#### 2. **get_wandb_project_info()**
+   - 현재 실행 중인 WandB 정보를 불러오고 project_name, entity_name을 반환합니다.
 
-#### 3. **get_existing_run_ids()**
-   - Google 스프레드시트에서 기존에 저장된 데이터를 불러와 `run_id` 리스트를 반환합니다.
-   - 중복된 실험 데이터를 방지하기 위한 기능입니다.
+#### 3. **load_config()**
+   - "GCP_JSON", "FIXED_HEADERS" 값이 존재하는지 확인하고 불러옵니다.
+   - 만약 불러오지 못했다면, 관련 에러 메세지를 반환합니다.
 
-#### 4. **convert_row_to_str()**
-   - 스프레드시트의 데이터를 문자열로 변환하며, `NaN` 값이 있을 경우 빈 문자열로 처리합니다.
+#### 4. **init_sheet()**
+   - 최대 100개 column 만큼의 값을 저장할 수 있는 Spreadsheet를 초기화합니다.
+   - 초기화된 Spreadsheet에는 Wandb에서 진행 중인 실험 데이터가 저장됩니다.
 
-#### 5. **get_dynamic_headers()**
-   - W&B 실험 데이터에서 `config` 및 `summary` 정보를 가져와 동적 헤더를 추출합니다.
-   - 고정된 헤더와 결합하여 최종 헤더를 생성합니다.
 
-#### 6. **process_wandb_data()**
-   - W&B 데이터를 처리하여 실험 결과를 `run_id`, `timestamp`, `name`과 함께 정리된 행으로 반환합니다.
-   - 고정된 헤더 외에도 실험 설정(`config`) 및 결과(`summary`) 데이터를 포함합니다.
+#### 6. **sync_data()**
+   - 저장된 Wandb 실험 데이터를 Config 정보를 활용해 Google Spreadsheet로 전송합니다.
+   - 만약 전송할 수 없다면, 관련 에러 메세지를 반환합니다.
 
 #### 7. **main()**
    - 전체 실행 과정이 포함된 메인 함수입니다.
-   - Google Sheets에서 기존 데이터를 가져와 중복을 체크하고, W&B에서 가져온 새로운 데이터를 스프레드시트에 추가합니다.
+   - Google Sheets에서 기존 데이터를 가져와 중복되는지 확인하고, W&B에서 가져온 새로운 데이터를 스프레드시트에 추가합니다.
 
 ### 실행 방법
 
@@ -122,10 +125,8 @@ pip install -r requirements.txt
 ### 출력
 - 실행이 완료되면, W&B 실험 데이터가 Google 스프레드시트에 최신 상태로 업데이트됩니다.
 - 출력 메시지로 성공 여부를 확인할 수 있습니다.
+- 버그가 발생했다면, 해당 상황을 알 수 있도록 관련 내용을 함께 출력합니다.
 
-   ```text
-   W&B 데이터를 내림차순으로 헤더와 함께 Google 스프레드시트에 추가했습니다.
-   ```
 
 ## 주의 사항
 
