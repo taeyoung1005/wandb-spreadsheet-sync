@@ -7,10 +7,7 @@
       "val_dice",
       "model_name",
       "batch_size",
-      "optim",
-      "loss",
       "learning_rate"
     ],
     "GCP_JSON": "GCP_JSON",
-    "SPREADSHEET_NAME": "시트 이름",
   }
