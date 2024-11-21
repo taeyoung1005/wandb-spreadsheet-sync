@@ -1,1 +1,3 @@
-wandb-connector-c983307d854f.json
+# Private json files
+*.json
+GCP_JSON.json
