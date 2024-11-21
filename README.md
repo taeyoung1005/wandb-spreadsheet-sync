@@ -18,7 +18,7 @@ flowchart TD
     D --> E[Update Google Sheets using new data]
     E --> F[Schedule task to run every 30 minutes]
 
-    G --> |Schedular : 30 min| D
+    F --> |Schedular : 30 min| C
 ```
 
 ## 주요 기능
@@ -71,7 +71,7 @@ pip install -r requirements.txt
 python wandb_spreadsheet_sync.py --user_name ng-youn --schedule_time 45
 ```
 
-5. (Optional) Docker 실행
+5. **(Optional) Docker 실행**
    1. Image build
    ```bash
    docker build -t wandb_spreadsheet_sync .
