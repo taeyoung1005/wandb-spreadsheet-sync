@@ -33,13 +33,13 @@ class SheetError(Exception):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Sync WandB runs to Google Sheets')
-    parser.add_argument('--schedule-time', type=int, default=30,
+    parser.add_argument('--schedule_time', type=int, default=30,
                        help='Schedule interval in minutes (default: 30)')
-    parser.add_argument('--user-name', type=str, default='Anoymous',
+    parser.add_argument('--user_name', type=str, default='Anoymous',
                        help='User name for tracking WandB runs')
-    parser.add_argument('--sheet-name', type=str, required=True,
+    parser.add_argument('--sheet_name', type=str, required=True,
                        help='Name of the Google Sheet to use')
-    parser.add_argument('--config-path', type=str, default='config.json',
+    parser.add_argument('--config_path', type=str, default='config.json',
                        help='Path to configuration file')
     return parser.parse_args()
 
