@@ -1,15 +1,16 @@
 # 프로젝트 설명: W&B 데이터를 Google 스프레드시트로 전송
 
+
 이 프로젝트는 실행 중인 Wandb 실험을 불러오고, 전송하고 싶은 Machine Learning 또는 Deep Learning 실험 데이터를 지정한 뒤에 Google Spreadsheet로 정리하여 기록합니다. W&B API를 통해 프로젝트의 실험 데이터를 가져오고, Google Sheets API를 사용하여 실험 데이터를 Google 스프레드시트에 저장할 수 있습니다. 실행 예시는 아래와 같습니다.
 
-| Run ID | Timestamp | User | Model Type | Learning Rate | Batch Size | Epochs | Training Loss | Validation Loss | Accuracy | GPU Memory |
-|--------|-----------|------|------------|---------------|------------|---------|---------------|-----------------|-----------|------------|
-| 2xk8p9n0 | 2024-11-20 14:30:15 | Namgyu-Youn | ResNet50 | 0.001 | 32 | 100 | 0.245 | 0.312 | 0.892 | 5.6GB |
-| 7mq2r5v3 | 2024-11-20 15:45:22 | taeyoung1005 | ResNet101 | 0.0005 | 64 | 150 | 0.198 | 0.287 | 0.901 | 8.2GB |
-| 9kt4h8w1 | 2024-11-20 17:20:03 | YourName | EfficientNet | 0.001 | 32 | 80 | 0.267 | 0.295 | 0.885 | 4.8GB |
-| 3np6j2x5 | 2024-11-20 19:10:45 | YourName | VGG16 | 0.0001 | 16 | 120 | 0.312 | 0.358 | 0.878 | 6.4GB |
+| Run ID | Timestamp | User | Model Type | Batch Size | Epochs | Training Loss | Validation Loss | GPU Memory |
+|--------|-----------|------|------------|---------------|------------|---------|---------------|------------|
+| 2xk8p9n0 | 2024-11-20 14:30:15 | Namgyu-Youn | ResNet50 | 32 | 100 | 0.245 | 0.312 | 5.6GB |
+| 7mq2r5v3 | 2024-11-20 15:45:22 | taeyoung1005 | ResNet101 | 64 | 150 | 0.198 | 0.287 | 8.2GB |
+| 9kt4h8w1 | 2024-11-20 17:20:03 | YourName | EfficientNet | 32 | 80 | 0.267 | 0.295 | 4.8GB |
+| 3np6j2x5 | 2024-11-20 19:10:45 | YourName | VGG16 | 16 | 120 | 0.312 | 0.358 | 6.4GB |
 
-또한 mermaid를 활용한 구조는 아래와 같습니다.
+또한 mermaid를 활용한 작동 구조는 아래와 같습니다.
 ```mermaid
 flowchart TD
     A[config.json] --> C
